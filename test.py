@@ -98,14 +98,21 @@ def test_montmul_64bit_base():
         r_val = ((1 << LIMB_BITS) ** len(modulus_limbs)) % modulus
         r_squared_val = (r_val ** 2) % modulus
         r_inv_val = pow(r_val, -1, modulus)
+
+        r_limbs = num_to_limbs(r_val, base)
         r_squared_limbs = num_to_limbs(r_squared_val, base, len(modulus_limbs))
+        one_limbs = num_to_limbs(1, base, len(modulus_limbs))
 
         # TODO test with largest, smallest possible values
 
         test_val = 2
         test_val_limbs = num_to_limbs(test_val, base, len(modulus_limbs))
 
-        assert limbs_to_num(mulmodmont(test_val_limbs, r_squared_limbs, modulus_limbs, modinv, base), base) == ( test_val * r_val) % modulus, "should convert normal->montgomery form"
+        mont_val_limbs = mulmodmont(test_val_limbs, r_squared_limbs, modulus_limbs, modinv, base)
+
+        assert limbs_to_num(mont_val_limbs, base) == ( test_val * r_val) % modulus, "should convert normal->montgomery form"
+        norm_limbs = mulmodmont(mont_val_limbs, one_limbs, modulus_limbs, modinv, base)
+        assert limbs_to_num(norm_limbs, base) == test_val, "should convert montgomery->normal form"
 
 print("limbs tests")
 test_limbs()
