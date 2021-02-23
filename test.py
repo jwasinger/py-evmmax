@@ -1,5 +1,5 @@
 from montmul import mulmodmont
-from limbs import num_to_limbs, limbs_to_num, limbs_mul_limb, limbs_add, limbs_sub, limbs_gte, uint64limbs_from_bytes, uint64limbs_to_bytes
+from limbs import num_to_limbs, limbs_to_num, limbs_mul_limb, limbs_add, limbs_sub, limbs_gte, uint64limbs_from_bytes, uint64limbs_to_bytes, limbs_addmod, limbs_submod
 
 LIMB_BITS = 64
 
@@ -56,6 +56,20 @@ def test_limbs():
     assert test_val_uint64limbs == [(1 << 64) - 1] * 4
     print("    test uint64limbs_to_bytes")
     assert uint64limbs_to_bytes(test_val_uint64limbs) == test_val
+
+    print("    test limbs_addmod")
+    # test that (1<<256 - 2) + 1 % (1<<256 - 1) == 0
+    test_val_2 = (1 << 256) - 2
+    test_val_2 = list(test_val_2.to_bytes(32, 'little'))
+    test_val_2_uint64limbs = uint64limbs_from_bytes(test_val_2)
+    one = 1
+    one_limbs = uint64limbs_from_bytes(one.to_bytes(32, 'little'))
+    assert limbs_addmod(test_val_2_uint64limbs, one_limbs, test_val_uint64limbs, (1<<64)) == [0] * 4
+
+    print("    test limbs_submod")
+    # test (0 - 1) % (1<<256 - 1) == (1<<256 - 2)
+    zero_limbs = [0] * 4
+    assert limbs_submod(zero_limbs, one_limbs, test_val_uint64limbs, (1<<64)) == test_val_2_uint64limbs
 
 def test_montmul_hac_testcase():
     base = 10

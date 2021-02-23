@@ -1,3 +1,4 @@
+# subtraction with borrow-out ignored
 def limbs_sub(x, y, base) -> [int]:
     assert len(x) == len(y), "num_limbs must be equal"
     num_limbs = len(x)
@@ -12,6 +13,25 @@ def limbs_sub(x, y, base) -> [int]:
     #     c =  abs(x - y - c) // base
 
     # return c, res
+
+def limbs_addmod(x, y, mod, base) -> [int]:
+    carry, result = limbs_add(x, y, base)
+    result = result + [carry]
+
+    return limbs_sub(result, mod + [0], base)[:-1]
+
+def limbs_submod(x, y, mod, base) -> [int]:
+    # fast version of this would do: 
+    #     subtraction first, then adddition, and only use value from first
+    #     subtraction if there was no borrow out (x > y)
+
+    result = [0] * len(x)
+    if limbs_lte(x, y):
+        carry, result = limbs_add(x, y, base)
+        result += [carry]
+
+    result = limbs_sub(result, mod + [0], base)[:-1]
+    return result
 
 # add two equally-sized multiple-limb number together.
 # return a carry/overflow limb and the sum limbs
@@ -38,6 +58,18 @@ def limbs_mul_limb(limbs, limb, base) -> (int, [int]):
         c = (limb * limbs[i] + c) // base
 
     return c, res
+
+# given two equally-sized, multiple-limb numbers x, y: return x >= y
+def limbs_lte(x, y) -> bool:
+    assert len(x) == len(y), "x and y should have same number of limbs"
+    
+    for (x_limb, y_limb) in reversed(list(zip(x,y))):
+        if x_limb < y_limb:
+            return True
+        elif x_limb > y_limb:
+            return False
+
+    return True
 
 # given two equally-sized, multiple-limb numbers x, y: return x >= y
 def limbs_gte(x, y) -> bool:
