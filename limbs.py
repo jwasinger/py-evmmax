@@ -73,9 +73,27 @@ def limbs_to_num(limbs, base) -> [int]:
 
     return res
 
-def limbs(array, base):
-    for val in array:
-        if val >= base:
-            raise Exception("limb value must be lte than base")
+def uint64limbs_from_bytes(b):
+    delta = len(b) % 4
+    if delta != 0:
+        b += [0] * (4 - delta)
 
-    return array
+    limbs = []
+
+    for i in range(0, len(b), 8):
+        limb = b[i]
+        for j in range(1, 8):
+            limb += b[i + j] * (256 ** j) 
+        limbs.append(limb)
+
+    return limbs
+
+def uint64limbs_to_bytes(limbs):
+    result = []
+
+    for limb in limbs:
+        for _ in range(8):
+            result.append(limb & 0xff)
+            limb >>= 8
+
+    return result

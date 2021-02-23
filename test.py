@@ -1,5 +1,5 @@
 from montmul import mulmodmont
-from limbs import num_to_limbs, limbs_to_num, limbs_mul_limb, limbs_add, limbs_sub, limbs_gte
+from limbs import num_to_limbs, limbs_to_num, limbs_mul_limb, limbs_add, limbs_sub, limbs_gte, uint64limbs_from_bytes, uint64limbs_to_bytes
 
 LIMB_BITS = 64
 
@@ -47,6 +47,15 @@ def test_limbs():
     assert limbs_gte(x, y) == False
     assert limbs_gte(y, x) == True
     assert limbs_gte(x, x) == True
+
+    print("    test uint64limbs_from_bytes")
+    test_val = (1 << 256) - 1
+    test_val = list(test_val.to_bytes(32, 'little'))
+    test_val_uint64limbs = uint64limbs_from_bytes(test_val)
+
+    assert test_val_uint64limbs == [(1 << 64) - 1] * 4
+    print("    test uint64limbs_to_bytes")
+    assert uint64limbs_to_bytes(test_val_uint64limbs) == test_val
 
 def test_montmul_hac_testcase():
     base = 10
