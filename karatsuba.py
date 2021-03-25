@@ -1,35 +1,44 @@
-
-def karatsuba_mul(product: [int], x: [int], y: [int]):
-    assert len(z1) == len(z2) and len(z1) == len(z0)
-    assert len(product) == len(z2) * 2
-
-    pass
-
-def karatsuba_add(product: [int], z2: [int], z1: [int], z0: [int]):
-    assert len(z1) == len(z2) and len(z1) == len(z0)
-    assert len(product) == len(z2) * 2
-
-    c = limbs_add(product[0:len(product)//2], product[0:len(product)//2], z0)
-    product[len(product)//2] += c
-
-    c, limbs_add(product[len(product)//4:len(product)//2], product[len(product)//4:len(product)//2], z1)
-    product[len(product)//2 + len(product)//4] += c
-
-    # carry out shouldn't be possible here
-    c, limbs_add(product[len(product)//2:len(product)//2 + len(product)//4], product[len(product)//2:len(product)//4], z2)
-    if c != 0:
-        raise Exception("overflow")
-
-def karatsuba(x: [int], y: [int], context: ArithContext) -> [int]:
-
+# multiplication step:
+#
 # z2 = x1 * y1
 # z1 = x1 * y0 + x0 * y1
 # z0 = x0 * y0
-
-# final result is
+#
+# addition step:
+#
 # | -- z2 -- |
 # +
 #       | -- z1 -- | 
 # +
 #             | -- z0 -- |
-# | -- || -- || -- | --  | <- word sizes
+# | -- || -- || -- | --  |
+# | ----- product ------ |
+# highest           lowest
+def karatsuba_mul_accum(product: [int], x: [int], y: [int]):
+    assert len(x) == len(y)
+    limb_count = len(z1)
+    assert len(product) == limb_count * 2
+
+    if limb_count == 1:
+        product[0] = (x[0] * y[0]) % BASE
+        product[1] = (x[0] * y[0]) // BASE
+        return
+    elif limb_count % 2 == 1:
+        pass # TODO fix this case
+
+    z0 = product[:len(product)//2]
+    c, z0[:] = karatsuba_mul_accum(z0, x0, y0, 0)
+
+    z1 = product[len(product)//4:len(product)//2 + len(product)//4]
+    c, z1[:] = karatsuba_mul_accum(z1, x1, y0, c)
+
+    z1 = product[len(product)//4:len(product)//2 + len(product)//4]
+    c2, z1[:] = karatsuba_mul_accum(z1, x0, y1, 0)
+
+    c += c2
+
+    z2 = product[len(product)//2:]
+    c, z2[:] = karatsuba_mul_accum(z2, x0, y1, c)
+
+    if c != 0:
+        raise Exception("overflow")
