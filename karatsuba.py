@@ -54,8 +54,7 @@ def karatsuba_mul_accum(product: [int], x: [int], y: [int], c_in) -> int:
     assert len(product) == limb_count * 2
 
     if limb_count == 1:
-        product[0] = (x[0] * y[0]) % BASE
-        product[1] = (x[0] * y[0]) // BASE
+        basic_mul(product, x, y)
         return 0
     elif limb_count % 2 == 1:
         raise Exception("implement this case")
