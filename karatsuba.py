@@ -1,8 +1,9 @@
 import numpy
+from limbs import limbs_add
 
 BASE = 10
 
-def madd0(v1, v2):
+def madd(v1, v2):
     assert v1 < BASE and v2 < BASE
     return [(v1 * v2) // BASE, (v1 * v2) % BASE]
 
@@ -19,7 +20,7 @@ def basic_schoolbook_mul(product: [int], x: [int], y: [int]):
     assert len(x) == len(y)
     assert len(x) == 2
 
-    c, product[0] = madd0(x[0], y[0])
+    c, product[0] = madd(x[0], y[0])
     c, product[1] = madd1(x[0], y[1], c)
     product[2] = c
     
@@ -35,16 +36,21 @@ assert p == [1, 0, 8, 9]
 # product <- product + x * y + c_in
 # returns carry out
 def basic_mul_accum(product: [int], x: int, y: int, c_in) -> int:
-    hi, lo = madd(x, y, c_in)
-    c_out = limbs_add(product[0:2], product[0:2], [lo, hi])
+    hi, lo = madd1(x, y, c_in)
+    c_out, product[0:2] = limbs_add(product[0:2], [lo, hi], BASE)
     return c_out
 
 def karatsuba_basic_step_accum(product: [int], x: [int], y: [int], c_in) -> int:
     assert len(product) == 4 and len(x) == 2 and len(y) == 2
-    c_out = basic_mul_accum(product[0:2], product[0:2], x[1], y[1], c_in=0)
-    c_out = basic_mul_accum(product[1:3], product[1:3], x[1], y[0], c_in=c_out, c_idx=c_idx)
+    c_out = basic_mul_accum(product[0:2], x[1], y[1], c_in=0)
 
-BASE = 1<<64
+    c_out = basic_mul_accum(product[1:3], x[1], y[0], c_in=c_out)
+    c_out_2 = basic_mul_accum(product[1:3], x[1], y[0], c_in=0)
+
+    # TODO check that this carry addition can't overflow
+    c_out = c_out + c_out_2
+
+    return basic_mul_accum(product[2:4], x[0], y[0], c_in=c_out)
 
 # multiplication step:
 #
@@ -86,7 +92,7 @@ def karatsuba_mul_accum(product: [int], x: [int], y: [int], c_in) -> int:
     c = karatsuba_mul_accum(z1, x1, y0, c_in=c)
 
     z1 = product[len(product)//4:len(product)//2 + len(product)//4]
-    c = karatsuba_mul_accum(z1, x0, y1, c_in=c)
+    c2 = karatsuba_mul_accum(z1, x0, y1, c_in=0)
 
     # TODO the carry can't overflow here right?
     c += c2
