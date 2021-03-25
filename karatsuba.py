@@ -1,3 +1,5 @@
+import numpy
+
 BASE = 10
 
 def madd0(v1, v2):
@@ -12,7 +14,7 @@ def madd2(v1, v2, v3, v4):
     assert v1 < BASE and v2 < BASE and v3 < BASE
     return [(v1 * v2 + v3 + v4) // BASE, (v1 * v2 + v3 + v4) % BASE]
 
-def basic_mul(product: [int], x: [int], y: [int]):
+def basic_schoolbook_mul(product: [int], x: [int], y: [int]):
     assert len(product) == 4
     assert len(x) == len(y)
     assert len(x) == 2
@@ -27,8 +29,20 @@ def basic_mul(product: [int], x: [int], y: [int]):
 
 # 99 * 99 = 9801
 p = [0] * 4
-basic_mul(p, [9, 9], [9, 9])
+basic_schoolbook_mul(p, [9, 9], [9, 9])
 assert p == [1, 0, 8, 9]
+
+# product <- product + x * y + c_in
+# returns carry out
+def basic_mul_accum(product: [int], x: int, y: int, c_in) -> int:
+    hi, lo = madd(x, y, c_in)
+    c_out = limbs_add(product[0:2], product[0:2], [lo, hi])
+    return c_out
+
+def karatsuba_basic_step_accum(product: [int], x: [int], y: [int], c_in) -> int:
+    assert len(product) == 4 and len(x) == 2 and len(y) == 2
+    c_out = basic_mul_accum(product[0:2], product[0:2], x[1], y[1], c_in=0)
+    c_out = basic_mul_accum(product[1:3], product[1:3], x[1], y[0], c_in=c_out, c_idx=c_idx)
 
 BASE = 1<<64
 
@@ -54,8 +68,9 @@ def karatsuba_mul_accum(product: [int], x: [int], y: [int], c_in) -> int:
     assert len(product) == limb_count * 2
 
     if limb_count == 1:
-        basic_mul(product, x, y)
-        return 0
+        return basic_mul_accum(product, x[0], y[0], c_in)
+    elif limb_count == 2:
+        return karatsuba_basic_step_accum(product, x, y, c_in)
     elif limb_count % 2 == 1:
         raise Exception("implement this case")
 
@@ -65,14 +80,15 @@ def karatsuba_mul_accum(product: [int], x: [int], y: [int], c_in) -> int:
     y1 = y[len(y)//2:]
 
     z0 = product[:len(product)//2]
-    c = karatsuba_mul_accum(z0, x0, y0, c_in)
+    c = karatsuba_mul_accum(z0, x0, y0, c_in=c_in)
 
     z1 = product[len(product)//4:len(product)//2 + len(product)//4]
-    c = karatsuba_mul_accum(z1, x1, y0, c)
+    c = karatsuba_mul_accum(z1, x1, y0, c_in=c)
 
     z1 = product[len(product)//4:len(product)//2 + len(product)//4]
-    c2 = karatsuba_mul_accum(z1, x0, y1, 0)
+    c = karatsuba_mul_accum(z1, x0, y1, c_in=c)
 
+    # TODO the carry can't overflow here right?
     c += c2
 
     z2 = product[len(product)//2:]
@@ -80,10 +96,10 @@ def karatsuba_mul_accum(product: [int], x: [int], y: [int], c_in) -> int:
 
     return c
 
-x = [1, 2, 3, 4]
-y = [1, 2, 3, 4]
-result = [0] * 8
-expected= [1, 4, 0, 1, 7, 6, 8, 1]
+x = numpy.array([1, 2, 3, 4])
+y = numpy.array([1, 2, 3, 4])
+result = numpy.array([0] * 8)
+expected= numpy.array([1, 4, 0, 1, 7, 6, 8, 1])
 
 c = karatsuba_mul_accum(result, x, y, 0)
 import pdb; pdb.set_trace()
