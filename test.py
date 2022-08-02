@@ -1,4 +1,4 @@
-from montmul import mulmodmont
+from montmul import mulmodmont, mulmont_cios
 from limbs import num_to_limbs, limbs_to_num, limbs_mul_limb, limbs_add, limbs_sub, limbs_gte
 
 LIMB_BITS = 64
@@ -83,6 +83,29 @@ def test_montmul_64bit_base():
         test_val_limbs = num_to_limbs(test_val, base, len(modulus_limbs))
 
         assert limbs_to_num(mulmodmont(test_val_limbs, r_squared_limbs, modulus_limbs, modinv, base), base) == ( test_val * r_val) % modulus, "should convert normal->montgomery form"
+
+def test_mulmont_cios():
+    limb_count = 3
+    word_size = 8
+    word_mod = 1 << (word_size * 8)
+    modint = (1 << (word_size * 8 * limb_count)) - 1
+    x_int = modint - 1
+    y_int = modint - 1
+    x = num_to_limbs(x_int, word_mod, limb_count) 
+    y = num_to_limbs(y_int, word_mod, limb_count) 
+
+    # largest modulus representable with given limb count
+    mod = num_to_limbs(modint, word_mod, limb_count)
+    modinv = pow(-modint, -1, word_mod)
+
+    r_val = ((1 << 64) ** len(mod)) % modint
+
+    res = mulmont_cios(x, y, mod, modinv, word_size)
+    res = res[:-1]
+    import pdb; pdb.set_trace()
+    assert limbs_to_num(res, 1<<64) == (x_int * y_int * r_val) % modint
+
+test_mulmont_cios()
 
 print("limbs tests")
 test_limbs()

@@ -1,6 +1,42 @@
 from limbs import limbs_mul_limb, limbs_add, limbs_sub, limbs_gte
 LIMB_BITS = 64
 
+def hi_lo(val: int, word_size: int) -> (int, int):
+    base = 1 << (word_size * 8)
+    return (val >> (word_size * 8)) % base, val % base
+
+def mulmont_cios(x, y, mod, modinv, word_size) -> [int]:
+    assert len(x) == len(y) and len(y) == len(mod), "bignum inputs must have same length"
+    limb_count = len(x)
+
+    t = [0] * (limb_count + 2)
+
+    for i in range(limb_count):
+        # first inner-loop multiply x * y[i]
+        c = 0
+        for j in range(limb_count):
+            c, t[j] = hi_lo(t[j] + x[j] * y[i] + c, word_size)
+
+        t[limb_count + 1], t[limb_count] = hi_lo(t[limb_count] + c, word_size)
+
+        m = (modinv * t[0]) % (1 << (word_size * 8)) 
+        c, _ = hi_lo(m * mod[0] + t[0], word_size)
+
+        # second inner-loop: reduction.
+        for j in range(1, limb_count):
+            c, t[j - 1] = hi_lo(t[j] + mod[j] * m + c, word_size)
+
+        hi, t[limb_count - 1] = hi_lo(t[limb_count] + c, word_size)
+        t[limb_count] = t[limb_count + 1] + hi
+
+
+    t = t[:-1]
+    if t[-1] != 0:
+        import pdb; pdb.set_trace()
+        return limbs_sub(t, mod + [0], 1<<64)[:-1]
+    elif limbs_gte(t[:-1], mod):
+        return limbs_sub(t[:-1], mod, 1<<64)
+
 # montgomery reduction of the product of two multiple-limb numbers
 # implementation of HAC 14.36
 def mulmodmont(x, y, mod, modinv, base) -> [int]:
