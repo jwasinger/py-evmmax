@@ -7,10 +7,11 @@ LIMB_SIZE = 8
 BASE = 1 << 64
 
 # -----------------------------------------------------------------------------
-#   start of `limbs` bignum utility code
+#   start of bignum util code and other helpers
 #   numbers are expressed as little-endian lists 64bit unsigned integers
 
-def limbs_sub(x: [int], y: [int]) -> (int, [int]):
+# return x - y (omitting borrow-out)
+def limbs_sub(x: [int], y: [int]) -> [int]:
     assert len(x) == len(y), "num_limbs must be equal"
     num_limbs = len(x)
     res = [0] * num_limbs
@@ -19,8 +20,7 @@ def limbs_sub(x: [int], y: [int]) -> (int, [int]):
     for i in range(num_limbs):
         c, res[i] = sub_with_borrow(x[i], y[i], c)
 
-    #result = limbs_to_int(x, base) - limbs_to_int(y, base)
-    return res[:]#int_to_limbs(abs(result), base, len(x))
+    return res[:]
 
 # given two equally-sized, multiple-limb numbers x, y: return x >= y
 def limbs_gte(x, y) -> bool:
@@ -34,11 +34,13 @@ def limbs_gte(x, y) -> bool:
 
     return True
 
-# TODO assert that the number can actually be represented by `limb_count` limbs
-def int_to_limbs(num, limb_count=None) -> [int]:
+# convert an int to a bigint, padding with zero-limbs if limb_count is specified
+# and num wouldn't occupy limb_count limbs
+def int_to_limbs(num: int, limb_count=None) -> [int]:
     res = []
 
     if limb_count != None:
+        assert num < (1 << (limb_count * LIMB_BITS)), "num must be representable with given limb_count"
         for _ in range(limb_count):
             res.append(num % BASE)
             num //= BASE
@@ -62,16 +64,30 @@ def limbs_to_int(limbs: [int]) -> [int]:
         res += limb * (BASE ** i)
     return res
 
-def hi_lo(double_word: int) -> (int, int):
-    assert double_word < 1 << (LIMB_BITS * 2), "val must fit in two words"
-    return (double_word >> LIMB_BITS) % BASE, double_word % BASE
+# split a 128bit val into hi/low words
+def hi_lo(val128: int) -> (int, int):
+    assert val128 < 1 << (LIMB_BITS * 2), "val must fit in two words"
+    return (val128 >> LIMB_BITS) % BASE, val128 % BASE
+
+# compute (x - y - b). if negative 1, (x - y - b) % BASE, else return 0, (x - y - b) % BASE
+# b (borrow-in) must be 1 or 0
+def sub_with_borrow(x: int, y: int, b: int) -> (int, int):
+    assert b == 0 or b == 1, "borrow in must be zero or one"
+
+    res = x - y - b
+    b_out = 0
+    if res < 0:
+        res = BASE - abs(res)
+        b_out = 1
+
+    return b_out, res
 
 # -----------------------------------------------------------------------------
-# start of arithmetic
+# start of EVMMAX arithmetic
 
 # implementation adapted from section 2.3.2 in https://www.microsoft.com/en-us/research/wp-content/uploads/1998/06/97Acar.pdf
 # mulmont_cios computes (x * y * pow(R, -1, mod)) % mod, where R = 1 << (limb_count * word_size * 8)
-# modinv must be pow(-mod, -1, 1 << (word_size * 8))
+# modinv must be pow(-mod, -1, BASE)
 def mulmont_cios(x, y, mod, modinv) -> [int]:
     assert len(x) == len(y) and len(y) == len(mod), "{}, {}, {}".format(x, y, mod)
     assert mod[-1] != 0, "modulus must occupy all limbs"
@@ -106,16 +122,6 @@ def mulmont_cios(x, y, mod, modinv) -> [int]:
     else:
         return t[:-1]
 
-def sub_with_borrow(x: int, y: int, b: int) -> (int, int):
-    assert b == 0 or b == 1, "borrow in must be zero or one"
-
-    res = x - y - b
-    b_out = 0
-    if res < 0:
-        res = BASE - abs(res)
-        b_out = 1
-
-    return b_out, res
 
 # addmod computes (x + y) % mod
 def addmod(x: [int], y: [int], mod: [int]) -> [int]:
