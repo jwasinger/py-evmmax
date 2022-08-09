@@ -132,7 +132,6 @@ def test_mulmont_all_limbs():
     for limb_count in range(1, MAX_LIMB_COUNT + 1):
         test_suite = gen_mulmont_test_suite(limb_count)
         for (x, y, mod) in test_suite:
-            print('"{}","{}","{}","{}"'.format(x,y,mod,limb_count))
             x_limbs = int_to_limbs(x, limb_count)
             y_limbs = int_to_limbs(y, limb_count)
             mod_limbs = int_to_limbs(mod, limb_count)

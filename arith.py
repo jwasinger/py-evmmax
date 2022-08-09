@@ -166,26 +166,3 @@ def setmod(mod: [int]) -> int:
     assert len(mod) > 0 and len(mod) <= MAX_LIMB_COUNT, "modulus must be in correct range"
     result = pow(-limbs_to_int(mod), -1, BASE)
     return result
-    
-# -----------------------------------------------------------------------------
-# start of test cases
-
-def gen_max_mod(limb_count: int) -> int:
-    return (1 << (limb_count * LIMB_BITS)) - 1
-
-def gen_mid_mod(limb_count: int) -> int:
-    return (1 << ((limb_count * LIMB_BITS) - (LIMB_BITS // 2))) - 1
-
-def gen_min_mod(limb_count: int) -> int:
-    return (1 << ((limb_count - 1) * LIMB_BITS)) - 1
-
-#for limb_count in range(1, MAX_LIMB_COUNT):
-#    print(limb_count)
-#    # test that mulmont_cios(mod - 1, mod - 1, max_mod, modinv) == (mod - 1) * (mod - 1) * pow(1 << (limb_count * LIMB_BITS), -1, mod)
-#    #max_mod = (1 << (limb_count * 64)) - 1
-#    max_mod = gen_mid_mod(limb_count, 8)
-#    modinv = setmod(int_to_limbs(max_mod, BASE), WORD_SIZE)
-#    
-#    x = int_to_limbs(max_mod - 1, BASE, limb_count=limb_count)
-#    y = int_to_limbs(max_mod - 1, BASE, limb_count=limb_count)
-#    assert limbs_to_int(mulmont_cios(x, y, int_to_limbs(max_mod, BASE), modinv, WORD_SIZE), BASE) == ((max_mod - 1) * (max_mod - 1) * pow(1 << (limb_count * LIMB_BITS), -1, max_mod)) % max_mod
