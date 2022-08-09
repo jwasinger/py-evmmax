@@ -1,67 +1,37 @@
-from montmul import mulmodmont, mulmont_cios
-from limbs import num_to_limbs, limbs_to_num, limbs_mul_limb, limbs_add, limbs_sub, limbs_gte
+from arith import BASE, LIMB_SIZE, MAX_LIMB_COUNT, submod, addmod, setmod, int_to_limbs, limbs_to_int, limbs_gte, mulmont_cios
 
 LIMB_BITS = 64
 
-def gen_mont_params(mod, base) -> ([int], int):
-    mod_limbs = num_to_limbs(mod, base)
-    modinv = pow(-mod, -1, base)
+def gen_mont_params(mod) -> ([int], int):
+    mod_limbs = int_to_limbs(mod)
+    modinv = pow(-mod, -1, BASE)
 
     return (mod_limbs, modinv)
 
-def test_limbs():
-    base = 10
-    x = [9,9,9]
-    assert limbs_mul_limb(x, 2, base) == (1, [8,9,9])
-
-    print("    test num_to_limbs")
-    x = 123
-    assert num_to_limbs(x, base) == [3, 2, 1]
-    assert num_to_limbs(x, base, 4) == [3, 2, 1, 0]
-
-    print("    test limbs_to_num")
-    x = [3,2,1]
-    y = [3,2,1,0]
-    assert limbs_to_num(x, base) == 123
-    assert limbs_to_num(y, base) == 123
-
-    print("    test add_limbs")
-    x = [9, 9, 9, 0]
-    y = [9, 9, 9, 0]
-    assert limbs_add(x, y, base) == (0, [8,9,9,1])
-
-    x = [9, 9, 9]
-    y = [9, 9, 9]
-    assert limbs_add(x, y, base) == (1, [8,9,9])
-
-    print("    test sub_limbs")
-    x = [8, 9, 9]
-    y = [9, 9, 9]
-
-    # NOTE no borrow out for now
-    assert limbs_sub(x, y, base) == [1, 0, 0]
-    assert limbs_sub(y, x, base) == [1, 0, 0]
-    assert limbs_sub(x, x, base) == [0, 0, 0]
-
-    print("    test limbs_gte")
-    assert limbs_gte(x, y) == False
-    assert limbs_gte(y, x) == True
-    assert limbs_gte(x, x) == True
-
-def test_montmul_hac_testcase():
-    base = 10
-    m = 72639
-    R = 10**5
-    x = 5792
-    y = 1229
-    num_limbs = 5
-    modinv = 1 # pow(-m, -1, base)
-
-    m_limbs = num_to_limbs(m, base, num_limbs)
-    x_limbs = num_to_limbs(x, base, num_limbs)
-    y_limbs = num_to_limbs(y, base, num_limbs)
-
-    assert mulmodmont(x_limbs, y_limbs, m_limbs, modinv, base) == num_to_limbs(39796, base)
+# TODO create tests like these for 64bit limbs
+#def test_limbs():
+#    base = 10
+#    x = [9,9,9]
+#
+#    print("    test int_to_limbs")
+#    x = 123
+#    assert int_to_limbs(x, base) == [3, 2, 1]
+#    assert int_to_limbs(x, base, 4) == [3, 2, 1, 0]
+#
+#    print("    test limbs_to_int")
+#    x = [3,2,1]
+#    y = [3,2,1,0]
+#    assert limbs_to_int(x, base) == 123
+#    assert limbs_to_int(y, base) == 123
+#    x += [0]
+#    z = [4,2,1,0]
+#
+#    print("    test limbs_gte")
+#    assert limbs_gte(x, y) == True
+#    assert limbs_gte(y, x) == True
+#    assert limbs_gte(x, x) == True
+#    assert limbs_gte(z, x) == True
+#    assert limbs_gte(x, z) == False
 
 def test_montmul_64bit_base():
     test_moduli = {
@@ -71,50 +41,122 @@ def test_montmul_64bit_base():
 
     for name, modulus in zip(test_moduli.keys(), test_moduli.values()):
         print("    " + name)
-        modulus_limbs, modinv = gen_mont_params(modulus, base)
+        modulus_limbs, modinv = gen_mont_params(modulus)
         r_val = ((1 << LIMB_BITS) ** len(modulus_limbs)) % modulus
         r_squared_val = (r_val ** 2) % modulus
         r_inv_val = pow(r_val, -1, modulus)
-        r_squared_limbs = num_to_limbs(r_squared_val, base, len(modulus_limbs))
+        r_squared_limbs = int_to_limbs(r_squared_val, len(modulus_limbs))
 
         # TODO test with largest, smallest possible values
 
         test_val = 2
-        test_val_limbs = num_to_limbs(test_val, base, len(modulus_limbs))
+        test_val_limbs = int_to_limbs(test_val, len(modulus_limbs))
 
-        assert limbs_to_num(mulmodmont(test_val_limbs, r_squared_limbs, modulus_limbs, modinv, base), base) == ( test_val * r_val) % modulus, "should convert normal->montgomery form"
+        assert limbs_to_int(mulmont_cios(test_val_limbs, r_squared_limbs, modulus_limbs, modinv)) == ( test_val * r_val) % modulus, "should convert normal->montgomery form"
 
 def test_mulmont_cios():
     limb_count = 3
     word_size = 8
-    word_mod = 1 << (word_size * 8)
     modint = (1 << (word_size * 8 * limb_count)) - 1
     x_int = modint - 1
     y_int = modint - 1
-    x = num_to_limbs(x_int, word_mod, limb_count) 
-    y = num_to_limbs(y_int, word_mod, limb_count) 
+    x = int_to_limbs(x_int, limb_count) 
+    y = int_to_limbs(y_int, limb_count) 
 
     # largest modulus representable with given limb count
-    mod = num_to_limbs(modint, word_mod, limb_count)
-    modinv = pow(-modint, -1, word_mod)
+    mod = int_to_limbs(modint, limb_count)
+    modinv = pow(-modint, -1, BASE)
+    # TODO setmod
 
     r_val = ((1 << 64) ** len(mod)) % modint
 
-    res = mulmont_cios(x, y, mod, modinv, word_size)
+    res = mulmont_cios(x, y, mod, modinv)
     res = res[:-1]
-    import pdb; pdb.set_trace()
-    assert limbs_to_num(res, 1<<64) == (x_int * y_int * r_val) % modint
+    assert limbs_to_int(res) == (x_int * y_int * r_val) % modint
 
-test_mulmont_cios()
+def gen_inputs(mod: int) -> [(int, int)]:
+    yield mod - 1, mod - 1
+    yield 2, mod - 1
+    yield 0, 0
+    yield 1, 1
+    yield int(mod / 2), int(mod / 2)
+
+def gen_mulmont_test_suite(limb_count: int) -> [(int, int, int)]:
+    # test the max possible modulus/values
+    result = []
+    max_mod = (1 << (limb_count * LIMB_BITS)) - 1
+
+    for (x,y) in gen_inputs(max_mod):
+        yield (x, y, max_mod)
+
+    # test the min possible modulus/values
+    if limb_count > 1:
+        min_mod = (1 << ((limb_count - 1) * LIMB_BITS)) + 1
+        for (x,y) in gen_inputs(min_mod):
+            yield (x, y, min_mod)
+
+    # value in the middle of the range
+    mid_mod = (1 << ((limb_count * LIMB_BITS) - int(LIMB_BITS / 2))) - 1
+    for (x,y) in gen_inputs(mid_mod):
+        yield (x, y, mid_mod)
+
+def test_submod():
+    print("test_addmod_all_limbs")
+    for limb_count in range(1, MAX_LIMB_COUNT + 1):
+        test_suite = gen_mulmont_test_suite(limb_count)
+        for (x, y, mod) in test_suite:
+            x_limbs = int_to_limbs(x, limb_count)
+            y_limbs = int_to_limbs(y, limb_count)
+            mod_limbs = int_to_limbs(mod, limb_count)
+
+            expected = (x - y) % mod
+            res = limbs_to_int(submod(x_limbs, y_limbs, mod_limbs))
+            if expected != res:
+                import pdb; pdb.set_trace()
+
+def test_addmod():
+    print("test_addmod_all_limbs")
+    for limb_count in range(1, MAX_LIMB_COUNT + 1):
+        test_suite = gen_mulmont_test_suite(limb_count)
+        for (x, y, mod) in test_suite:
+            x_limbs = int_to_limbs(x, limb_count)
+            y_limbs = int_to_limbs(y, limb_count)
+            mod_limbs = int_to_limbs(mod, limb_count)
+
+            expected = (x + y) % mod
+            res = limbs_to_int(addmod(x_limbs, y_limbs, mod_limbs))
+            assert expected == res
+
+def test_mulmont_all_limbs():
+    print("test_mulmont_all_limbs")
+    for limb_count in range(1, MAX_LIMB_COUNT + 1):
+        test_suite = gen_mulmont_test_suite(limb_count)
+        for (x, y, mod) in test_suite:
+            x_limbs = int_to_limbs(x, limb_count)
+            y_limbs = int_to_limbs(y, limb_count)
+            mod_limbs = int_to_limbs(mod, limb_count)
+
+            modinv = setmod(mod_limbs)
+            r_inv = pow(1 << (limb_count * LIMB_BITS), -1, mod)
+
+            expected = (x * y * r_inv) % mod
+            res = limbs_to_int(mulmont_cios(x_limbs, y_limbs, mod_limbs, modinv))
+            assert expected == res
 
 print("limbs tests")
-test_limbs()
+#test_limbs()
 
-print("montmul test case from hac14.36")
-test_montmul_hac_testcase()
+print("mulmont test basic")
+test_mulmont_cios()
 
 print("montmul test cases on 64bit limbs")
 test_montmul_64bit_base()
 
-# print("montmul test case with bls12381")
-# test_montmul_bls12381()
+print("mulmont general tests")
+test_mulmont_all_limbs()
+
+print("addmod tests")
+test_addmod()
+
+print("submod tests")
+test_submod()
