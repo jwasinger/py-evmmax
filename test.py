@@ -1,4 +1,4 @@
-from arith import int_to_limbs, limbs_to_int, limbs_gte, mulmont_cios
+from arith import BASE, LIMB_SIZE, MAX_LIMB_COUNT, submod, addmod, setmod, int_to_limbs, limbs_to_int, limbs_gte, mulmont_cios
 
 LIMB_BITS = 64
 
@@ -73,9 +73,80 @@ def test_mulmont_cios():
     res = res[:-1]
     assert limbs_to_int(res, 1<<64) == (x_int * y_int * r_val) % modint
 
-def test_mulmont_all_limbs():
-    pass
+def gen_inputs(mod: int) -> [(int, int)]:
+    yield mod - 1, mod - 1
+    yield 2, mod - 1
+    yield 0, 0
+    yield 1, 1
+    yield int(mod / 2), int(mod / 2)
 
+def gen_mulmont_test_suite(limb_count: int) -> [(int, int, int)]:
+    # test the max possible modulus/values
+    result = []
+    max_mod = (1 << (limb_count * LIMB_BITS)) - 1
+
+    for (x,y) in gen_inputs(max_mod):
+        yield (x, y, max_mod)
+
+    # test the min possible modulus/values
+    if limb_count > 1:
+        min_mod = (1 << ((limb_count - 1) * LIMB_BITS)) + 1
+        for (x,y) in gen_inputs(min_mod):
+            yield (x, y, min_mod)
+
+    # value in the middle of the range
+    mid_mod = (1 << ((limb_count * LIMB_BITS) - int(LIMB_BITS / 2))) - 1
+    for (x,y) in gen_inputs(mid_mod):
+        yield (x, y, mid_mod)
+
+def test_submod():
+    print("test_addmod_all_limbs")
+    for limb_count in range(1, MAX_LIMB_COUNT + 1):
+        test_suite = gen_mulmont_test_suite(limb_count)
+        for (x, y, mod) in test_suite:
+            x_limbs = int_to_limbs(x, BASE, limb_count)
+            y_limbs = int_to_limbs(y, BASE, limb_count)
+            mod_limbs = int_to_limbs(mod, BASE, limb_count)
+
+            expected = (x - y) % mod
+            res = limbs_to_int(submod(x_limbs, y_limbs, mod_limbs, BASE), BASE)
+            if expected != res:
+                import pdb; pdb.set_trace()
+
+def test_addmod():
+    print("test_addmod_all_limbs")
+    for limb_count in range(1, MAX_LIMB_COUNT + 1):
+        test_suite = gen_mulmont_test_suite(limb_count)
+        for (x, y, mod) in test_suite:
+            x_limbs = int_to_limbs(x, BASE, limb_count)
+            y_limbs = int_to_limbs(y, BASE, limb_count)
+            mod_limbs = int_to_limbs(mod, BASE, limb_count)
+
+            expected = (x + y) % mod
+            res = limbs_to_int(addmod(x_limbs, y_limbs, mod_limbs, BASE), BASE)
+            assert expected == res
+
+def test_mulmont_all_limbs():
+    print("test_mulmont_all_limbs")
+    for limb_count in range(1, MAX_LIMB_COUNT + 1):
+        test_suite = gen_mulmont_test_suite(limb_count)
+        for (x, y, mod) in test_suite:
+            #print('"{}","{}","{}","{}"'.format(x,y,mod,limb_count))
+            x_limbs = int_to_limbs(x, BASE, limb_count)
+            y_limbs = int_to_limbs(y, BASE, limb_count)
+            mod_limbs = int_to_limbs(mod, BASE, limb_count)
+
+            modinv = setmod(mod_limbs, 8)
+            r_inv = pow(1 << (limb_count * LIMB_BITS), -1, mod)
+
+            expected = (x * y * r_inv) % mod
+            res = limbs_to_int(mulmont_cios(x_limbs, y_limbs, mod_limbs, modinv, 8), BASE)
+            assert expected == res
+
+
+# TODO addmod tests
+
+# TODO submod tests
 
 print("limbs tests")
 test_limbs()
@@ -88,3 +159,9 @@ test_montmul_64bit_base()
 
 print("mulmont general tests")
 test_mulmont_all_limbs()
+
+print("addmod tests")
+test_addmod()
+
+print("submod tests")
+test_submod()

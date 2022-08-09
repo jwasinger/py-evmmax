@@ -1,6 +1,9 @@
+import math
+
 MAX_LIMB_COUNT = 12
 LIMB_BITS = 64
 WORD_SIZE = 8
+LIMB_SIZE = 8
 BASE = 1 << 64
 
 # -----------------------------------------------------------------------------
@@ -11,13 +14,13 @@ def limbs_sub(x: [int], y: [int], base: int) -> (int, [int]):
     assert len(x) == len(y), "num_limbs must be equal"
     num_limbs = len(x)
     res = [0] * num_limbs
-    b = 0
+    c = 0
 
     for i in range(num_limbs):
-        pass
+        c, res[i] = sub_with_borrow(x[i], y[i], c, LIMB_SIZE)
 
-    result = limbs_to_int(x, base) - limbs_to_int(y, base)
-    return int_to_limbs(abs(result), base, len(x))
+    #result = limbs_to_int(x, base) - limbs_to_int(y, base)
+    return res[:]#int_to_limbs(abs(result), base, len(x))
 
 # given two equally-sized, multiple-limb numbers x, y: return x >= y
 def limbs_gte(x, y) -> bool:
@@ -40,6 +43,9 @@ def int_to_limbs(num, base, limb_count=None) -> [int]:
             res.append(num % base)
             num //= base
     else:
+        if num == 0:
+            return [0]
+
         while num != 0:
             if num < base:
                 res.append(num)
@@ -110,7 +116,7 @@ def sub_with_borrow(x: int, y: int, b: int, word_size: int) -> (int, int):
     res = x - y - b
     b_out = 0
     if res < 0:
-        res = LIMB_BASE - math.abs(res)
+        res = BASE - abs(res)
         b_out = 1
 
     return b_out, res
@@ -121,18 +127,18 @@ def addmod(x: [int], y: [int], mod: [int], word_size: int) -> [int]:
     limb_count = len(mod)
     tmp = [0] * limb_count
     z = [0] * limb_count
+    c, c1 = 0, 0
 
     if limbs_gte(x, mod) or limbs_gte(y, mod):
         raise Exception("x/y must be less than the modulus")
 
     for i in range(limb_count):
-        c, tmp[i] = hi_lo(x[i] + y[i] + c)
+        c, tmp[i] = hi_lo(x[i] + y[i] + c, LIMB_SIZE)
 
-    c = 0
     for i in range(limb_count):
-        c, z[i] = sub_with_borrow(tmp[i], mod[i], c)
+        c1, z[i] = sub_with_borrow(tmp[i], mod[i], c1, LIMB_SIZE)
 
-    if c != 0:
+    if c == 0 and c1 != 0:
         z[:] = tmp[:]
 
     return z
@@ -149,10 +155,10 @@ def submod(x: [int], y: [int], mod: [int], word_size: int) -> [int]:
         raise Exception("x/y must be less than the modulus")
 
     for i in range(limb_count):
-        c, tmp[i] = sub_with_borrow(x[i], y[i], c)
+        c, tmp[i] = sub_with_borrow(x[i], y[i], c, LIMB_SIZE)
 
     for i in range(limb_count):
-        c1, z[i] = sub_with_borrow(tmp[i], mod[i], c1)
+        c1, z[i] = hi_lo(tmp[i] + mod[i] + c1, LIMB_SIZE)
 
     if c == 0:
         z[:] = tmp[:]
@@ -161,8 +167,14 @@ def submod(x: [int], y: [int], mod: [int], word_size: int) -> [int]:
 
 # setmod computes a modulus-specific constant used by the CIOS algorithm (and also some other algorithms that operate at small bit-widths)
 def setmod(mod: [int], word_size: int) -> int:
-    assert len(mod) > 0 and len(mod) < MAX_LIMB_COUNT, "modulus must be in correct range"
-    return pow(-limbs_to_int(mod, BASE), -1, 1 << (word_size * 8))
+    assert len(mod) > 0 and len(mod) <= MAX_LIMB_COUNT, "modulus must be in correct range"
+    result = None
+    try:
+        result = pow(-limbs_to_int(mod, BASE), -1, 1 << (word_size * 8))
+    except Exception as e:
+        import pdb; pdb.set_trace()
+
+    return result
     
 # -----------------------------------------------------------------------------
 # start of test cases
