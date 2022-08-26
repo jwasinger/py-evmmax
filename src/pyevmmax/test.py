@@ -1,4 +1,4 @@
-from arith import BASE, LIMB_SIZE, MAX_LIMB_COUNT, submod, addmod, setmod, int_to_limbs, limbs_to_int, limbs_gte, mulmont_cios
+from arith import BASE, LIMB_SIZE, MAX_LIMB_COUNT, submod, addmod, int_to_limbs, limbs_to_int, limbs_gte, mulmont_cios, MontContext
 
 LIMB_BITS = 64
 
@@ -65,14 +65,29 @@ def test_mulmont_cios():
 
     # largest modulus representable with given limb count
     mod = int_to_limbs(modint, limb_count)
-    modinv = pow(-modint, -1, BASE)
+    ctx = MontContext()
+    ctx.SetMod(mod)
+
+    #modinv = pow(-modint, -1, BASE)
     # TODO setmod
 
     r_val = ((1 << 64) ** len(mod)) % modint
 
-    res = mulmont_cios(x, y, mod, modinv)
+    res = ctx.MulMont(x, y)
     res = res[:-1]
     assert limbs_to_int(res) == (x_int * y_int * r_val) % modint
+
+def test_conversion():
+    val = [18446744073709551613, 4294967295]
+    # r_squared =  [0 1] TODO check it
+    mod=[18446744073709551615, 4294967295]
+    
+    ctx = MontContext()
+    ctx.SetMod(mod)
+
+    import pdb; pdb.set_trace()
+    res = ctx.ToMont(val)
+    import pdb; pdb.set_trace()
 
 def gen_inputs(mod: int) -> [(int, int)]:
     yield mod - 1, mod - 1
@@ -115,7 +130,6 @@ def test_submod():
                 import pdb; pdb.set_trace()
 
 def test_addmod():
-    print("test_addmod_all_limbs")
     for limb_count in range(1, MAX_LIMB_COUNT + 1):
         test_suite = gen_mulmont_test_suite(limb_count)
         for (x, y, mod) in test_suite:
@@ -128,7 +142,6 @@ def test_addmod():
             assert expected == res
 
 def test_mulmont_all_limbs():
-    print("test_mulmont_all_limbs")
     for limb_count in range(1, MAX_LIMB_COUNT + 1):
         test_suite = gen_mulmont_test_suite(limb_count)
         for (x, y, mod) in test_suite:
@@ -149,6 +162,10 @@ print("limbs tests")
 print("mulmont test basic")
 test_mulmont_cios()
 
+print("test_conversion")
+test_conversion()
+
+raise Exception("done")
 print("montmul test cases on 64bit limbs")
 test_montmul_64bit_base()
 
@@ -160,3 +177,5 @@ test_addmod()
 
 print("submod tests")
 test_submod()
+
+print("conversion tests")

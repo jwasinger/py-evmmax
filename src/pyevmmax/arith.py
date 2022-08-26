@@ -167,8 +167,30 @@ def submod(x: [int], y: [int], mod: [int]) -> [int]:
 
     return z
 
-# setmod computes a modulus-specific constant used by the CIOS algorithm (and also some other algorithms that operate at small bit-widths)
-def setmod(mod: [int]) -> int:
-    assert len(mod) > 0 and len(mod) <= MAX_LIMB_COUNT, "modulus must be in correct range"
-    result = pow(-limbs_to_int(mod), -1, BASE)
-    return result
+class MontContext:
+    def __init__(self):
+        self.r_squared = None
+        self.mod = None
+        self.r_inv = None
+        pass
+
+    def SetMod(self, mod: [int]):
+        assert len(mod) > 0 and len(mod) <= MAX_LIMB_COUNT, "modulus must be in correct range"
+        assert mod[0] % 2 == 1, "modulus must not be even"
+
+        modint = limbs_to_int(mod)
+        
+        r = 1 << (len(mod) * 64)
+
+        self.mod_inv = pow(-modint, -1, BASE)
+        self.r_squared = int_to_limbs(r**2 % modint)
+        self.mod = mod
+
+    def ToMont(self, val: [int]) -> [int]:
+        return mulmont_cios(val, self.r_squared, self.mod, self.mod_inv)
+
+    def ToNorm(self, val: [int]) -> [int]:
+        return mulmont_cios(val, 1, self.mod, self.mod_inv)
+
+    def MulMont(self, x: [int], y: [int]) -> [int]:
+        return mulmont_cios(x, y, self.mod, self.mod_inv)
