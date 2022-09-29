@@ -77,18 +77,6 @@ def test_mulmont_cios():
     res = res[:-1]
     assert limbs_to_int(res) == (x_int * y_int * r_val) % modint
 
-def test_conversion():
-    val = [18446744073709551613, 4294967295]
-    # r_squared =  [0 1] TODO check it
-    mod=[18446744073709551615, 4294967295]
-    
-    ctx = MontContext()
-    ctx.SetMod(mod)
-
-    import pdb; pdb.set_trace()
-    res = ctx.ToMont(val)
-    import pdb; pdb.set_trace()
-
 def gen_inputs(mod: int) -> [(int, int)]:
     yield mod - 1, mod - 1
     yield 2, mod - 1
@@ -149,23 +137,43 @@ def test_mulmont_all_limbs():
             y_limbs = int_to_limbs(y, limb_count)
             mod_limbs = int_to_limbs(mod, limb_count)
 
-            modinv = setmod(mod_limbs)
+            ctx = MontContext()
+            ctx.SetMod(mod_limbs)
+            modinv = ctx.mod_inv
             r_inv = pow(1 << (limb_count * LIMB_BITS), -1, mod)
 
             expected = (x * y * r_inv) % mod
             res = limbs_to_int(mulmont_cios(x_limbs, y_limbs, mod_limbs, modinv))
             assert expected == res
 
+def test_1limb_hardcoded_case1():
+    x_limbs = [18446744073709551614]
+    y_limbs = [18446744073709551614]
+    mod = [18446744073709551615]
+    mod_inv = setmod(mod_limbs)
+    import pdb; pdb.set_trace()
+
+def test_1limb_hardcoded_case2():
+    x_limbs = [2]
+    y_limbs = [18446744073709551614]
+    mod_limbs = [18446744073709551615]
+    ctx = MontContext()
+    ctx.SetMod(mod_limbs)
+    mod_inv = ctx.mod_inv
+
+    res = limbs_to_int(mulmont_cios(x_limbs, y_limbs, mod_limbs, mod_inv))
+
+test_1limb_hardcoded_case2()
+
 print("limbs tests")
+test_mulmont_all_limbs()
+
 #test_limbs()
+#test_1limb_hardcoded_case()
 
 print("mulmont test basic")
 test_mulmont_cios()
 
-print("test_conversion")
-test_conversion()
-
-raise Exception("done")
 print("montmul test cases on 64bit limbs")
 test_montmul_64bit_base()
 
@@ -177,5 +185,3 @@ test_addmod()
 
 print("submod tests")
 test_submod()
-
-print("conversion tests")

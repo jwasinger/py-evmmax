@@ -167,12 +167,56 @@ def submod(x: [int], y: [int], mod: [int]) -> [int]:
 
     return z
 
+# algorithm 14.61 from Handbook of Applied Cryptography
+# input: two positive integers x,y
+# output: a, b, v s.t. ax + by = v = gcd(x,y)
+
+# in our case, x/y are coprime so gcd(x,y) = 1
+# a is the modular inverse:
+
+# ax + by = gcd(x,y)
+# ax + by = 1
+# ax - 1  = (-b)y = 0 mod y
+# ax      = 1 mod y
+# a       = (x ** -1) mod y
+
+def binary_extended_gcd_ref(x,y) -> (int, int, int):
+    # g <- 1
+    g = 1
+    while x % 2 == 0 and y % 2 == 0:
+        x //= 2
+        y //= 2
+        g *= 2
+
+    # u <- x, v <- y, A <- 1, B <- 0, C <- 0, D <- 1
+    u = x
+    v = y
+    A = 1
+    B = 0
+    C = 0
+
+    # while u is even:
+        # u <- u / 2
+        # if A == B == 0 ( mod 2 ):
+            # A = A / 2
+            # B = B / 2
+        # else:
+            # A = (A + y) / 2
+            # B = (B - x) / 2
+    # while v is even:
+        # v <- v / 2
+        # if C == D == 0 (mod 2):
+            # C <- C / 2
+            # D <- D / 2
+        # else:
+            # C <- (C + y) / 2
+            # D <- (D - x) / 2
+   # if u >= v: u = u - v, A = A - C, B = B - D
+
 class MontContext:
     def __init__(self):
         self.r_squared = None
         self.mod = None
-        self.r_inv = None
-        pass
 
     def SetMod(self, mod: [int]):
         assert len(mod) > 0 and len(mod) <= MAX_LIMB_COUNT, "modulus must be in correct range"
@@ -183,14 +227,15 @@ class MontContext:
         r = 1 << (len(mod) * 64)
 
         self.mod_inv = pow(-modint, -1, BASE)
-        self.r_squared = int_to_limbs(r**2 % modint)
+        self.r_squared = int_to_limbs(r**2 % modint, len(mod))
         self.mod = mod
 
     def ToMont(self, val: [int]) -> [int]:
         return mulmont_cios(val, self.r_squared, self.mod, self.mod_inv)
 
     def ToNorm(self, val: [int]) -> [int]:
-        return mulmont_cios(val, 1, self.mod, self.mod_inv)
+        one = [1] + [0] * (len(self.mod) - 1)
+        return mulmont_cios(val, one, self.mod, self.mod_inv)
 
     def MulMont(self, x: [int], y: [int]) -> [int]:
         return mulmont_cios(x, y, self.mod, self.mod_inv)
