@@ -57,7 +57,6 @@ def test_montmul_64bit_base():
         test_val = 2
         test_val_limbs = int_to_limbs(test_val, len(modulus_limbs))
 
-        import pdb; pdb.set_trace()
         assert limbs_to_int(mulmont_cios(test_val_limbs, r_squared_limbs, modulus_limbs, modinv)) == ( test_val * r_val) % modulus, "should convert normal->montgomery form"
 
 def test_mulmont_cios():
@@ -120,7 +119,7 @@ def test_submod():
             expected = (x - y) % mod
             res = limbs_to_int(submod(x_limbs, y_limbs, mod_limbs))
             if expected != res:
-                import pdb; pdb.set_trace()
+                raise Exception("test fail.  not eq expect cond")
 
 def test_addmod():
     for limb_count in range(1, MAX_LIMB_COUNT + 1):
@@ -156,7 +155,6 @@ def test_1limb_hardcoded_case1():
     y_limbs = [18446744073709551614]
     mod = [18446744073709551615]
     mod_inv = setmod(mod_limbs)
-    import pdb; pdb.set_trace()
 
 def test_1limb_hardcoded_case2():
     x_limbs = [2]
@@ -177,7 +175,6 @@ def test_failure():
     mod_inv = ctx.mod_inv
 
     res = limbs_to_int(mulmont_cios(x_limbs, y_limbs, mod_limbs, mod_inv))
-    import  pdb; pdb.set_trace()
     sys.exit(0)
 
 #test_failure()
@@ -197,7 +194,7 @@ print("montmul test cases on 64bit limbs")
 test_montmul_64bit_base()
 
 print("mulmont general tests")
-# test_mulmont_all_limbs()
+test_mulmont_all_limbs()
 
 print("addmod tests")
 test_addmod()

@@ -99,11 +99,8 @@ def mulmont_cios(x, y, mod, modinv) -> [int]:
     for i in reversed(range(limb_count)):
         # first inner-loop multiply x * y[i]
         c = 0 
-        print("first inner loop")
-        print("{}, {}".format(t, c))
         for j in reversed(range(limb_count)):
             c, t[j + 2] = hi_lo(t[j + 2] + x[j] * y[i] + c)
-            print("{},{}".format(t, c))
 
         t[0], t[1] = hi_lo(t[1] + c)
 
@@ -111,11 +108,8 @@ def mulmont_cios(x, y, mod, modinv) -> [int]:
         c, _ = hi_lo(m * mod[-1] + t[-1])
 
         # second inner-loop: reduction.
-        print("second inner loop")
-        print("{}, {}".format(t, c))
         for j in reversed(range(1, limb_count)):
-            c, t[j + 2] = hi_lo(t[j + 1] + mod[j] * m + c)
-            print("{},{}".format(t, c))
+            c, t[j + 2] = hi_lo(t[j + 1] + mod[j - 1] * m + c)
 
 
         hi, t[2] = hi_lo(t[1] + c)
