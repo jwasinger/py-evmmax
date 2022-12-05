@@ -17,7 +17,7 @@ def limbs_sub(x: [int], y: [int]) -> [int]:
     res = [0] * num_limbs
     c = 0
 
-    for i in range(num_limbs):
+    for i in reversed(range(num_limbs)):
         c, res[i] = sub_with_borrow(x[i], y[i], c)
 
     return res[:]
@@ -26,7 +26,7 @@ def limbs_sub(x: [int], y: [int]) -> [int]:
 def limbs_gte(x, y) -> bool:
     assert len(x) == len(y), "x and y should have same number of limbs"
     
-    for (x_limb, y_limb) in reversed(list(zip(x,y))):
+    for (x_limb, y_limb) in list(zip(x,y)):
         if x_limb > y_limb:
             return True
         elif x_limb < y_limb:
@@ -56,11 +56,11 @@ def int_to_limbs(num: int, limb_count=None) -> [int]:
             res.append(num % BASE)
             num //= BASE
 
-    return res
+    return list(reversed(res))
 
 def limbs_to_int(limbs: [int]) -> [int]:
     res = 0
-    for i, limb in enumerate(limbs):
+    for i, limb in enumerate(reversed(limbs)):
         res += limb * (BASE ** i)
     return res
 
@@ -90,37 +90,44 @@ def sub_with_borrow(x: int, y: int, b: int) -> (int, int):
 # modinv must be pow(-mod, -1, BASE)
 def mulmont_cios(x, y, mod, modinv) -> [int]:
     assert len(x) == len(y) and len(y) == len(mod), "{}, {}, {}".format(x, y, mod)
-    assert mod[-1] != 0, "modulus must occupy all limbs"
+    assert mod[0] != 0, "modulus must occupy all limbs"
 
     limb_count = len(mod)
 
     t = [0] * (limb_count + 2)
 
-    for i in range(limb_count):
+    for i in reversed(range(limb_count)):
         # first inner-loop multiply x * y[i]
         c = 0 
-        for j in range(limb_count):
-            c, t[j] = hi_lo(t[j] + x[j] * y[i] + c)
+        print("first inner loop")
+        print("{}, {}".format(t, c))
+        for j in reversed(range(limb_count)):
+            c, t[j + 2] = hi_lo(t[j + 2] + x[j] * y[i] + c)
+            print("{},{}".format(t, c))
 
-        t[limb_count + 1], t[limb_count] = hi_lo(t[limb_count] + c)
+        t[0], t[1] = hi_lo(t[1] + c)
 
-        m = (modinv * t[0]) % BASE
-        c, _ = hi_lo(m * mod[0] + t[0])
+        m = (modinv * t[-1]) % BASE
+        c, _ = hi_lo(m * mod[-1] + t[-1])
 
         # second inner-loop: reduction.
-        for j in range(1, limb_count):
-            c, t[j - 1] = hi_lo(t[j] + mod[j] * m + c)
+        print("second inner loop")
+        print("{}, {}".format(t, c))
+        for j in reversed(range(1, limb_count)):
+            c, t[j + 2] = hi_lo(t[j + 1] + mod[j] * m + c)
+            print("{},{}".format(t, c))
 
-        hi, t[limb_count - 1] = hi_lo(t[limb_count] + c)
-        t[limb_count] = t[limb_count + 1] + hi
 
-    t = t[:-1]
-    if t[-1] != 0:
-        return limbs_sub(t, mod + [0])[:-1]
-    elif limbs_gte(t[:-1], mod):
-        return limbs_sub(t[:-1], mod)
+        hi, t[2] = hi_lo(t[1] + c)
+        t[1] = t[0] + hi
+
+    t = t[1:]
+    if t[0] != 0:
+        return limbs_sub(t, [0] + mod)[1:]
+    elif limbs_gte(t[1:], mod):
+        return limbs_sub(t[1:], mod)
     else:
-        return t[:-1]
+        return t[1:]
 
 
 # addmod computes (x + y) % mod
@@ -134,10 +141,10 @@ def addmod(x: [int], y: [int], mod: [int]) -> [int]:
     if limbs_gte(x, mod) or limbs_gte(y, mod):
         raise Exception("x/y must be less than the modulus")
 
-    for i in range(limb_count):
+    for i in reversed(range(limb_count)):
         c, tmp[i] = hi_lo(x[i] + y[i] + c)
 
-    for i in range(limb_count):
+    for i in reversed(range(limb_count)):
         c1, z[i] = sub_with_borrow(tmp[i], mod[i], c1)
 
     if c == 0 and c1 != 0:
@@ -156,62 +163,16 @@ def submod(x: [int], y: [int], mod: [int]) -> [int]:
     if limbs_gte(x, mod) or limbs_gte(y, mod):
         raise Exception("x/y must be less than the modulus")
 
-    for i in range(limb_count):
+    for i in reversed(range(limb_count)):
         c, tmp[i] = sub_with_borrow(x[i], y[i], c)
 
-    for i in range(limb_count):
+    for i in reversed(range(limb_count)):
         c1, z[i] = hi_lo(tmp[i] + mod[i] + c1)
 
     if c == 0:
         z[:] = tmp[:]
 
     return z
-
-# algorithm 14.61 from Handbook of Applied Cryptography
-# input: two positive integers x,y
-# output: a, b, v s.t. ax + by = v = gcd(x,y)
-
-# in our case, x/y are coprime so gcd(x,y) = 1
-# a is the modular inverse:
-
-# ax + by = gcd(x,y)
-# ax + by = 1
-# ax - 1  = (-b)y = 0 mod y
-# ax      = 1 mod y
-# a       = (x ** -1) mod y
-
-def binary_extended_gcd_ref(x,y) -> (int, int, int):
-    # g <- 1
-    g = 1
-    while x % 2 == 0 and y % 2 == 0:
-        x //= 2
-        y //= 2
-        g *= 2
-
-    # u <- x, v <- y, A <- 1, B <- 0, C <- 0, D <- 1
-    u = x
-    v = y
-    A = 1
-    B = 0
-    C = 0
-
-    # while u is even:
-        # u <- u / 2
-        # if A == B == 0 ( mod 2 ):
-            # A = A / 2
-            # B = B / 2
-        # else:
-            # A = (A + y) / 2
-            # B = (B - x) / 2
-    # while v is even:
-        # v <- v / 2
-        # if C == D == 0 (mod 2):
-            # C <- C / 2
-            # D <- D / 2
-        # else:
-            # C <- (C + y) / 2
-            # D <- (D - x) / 2
-   # if u >= v: u = u - v, A = A - C, B = B - D
 
 class MontContext:
     def __init__(self):
