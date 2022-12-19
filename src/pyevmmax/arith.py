@@ -17,7 +17,7 @@ def limbs_sub(x: [int], y: [int]) -> [int]:
     res = [0] * num_limbs
     c = 0
 
-    for i in range(num_limbs):
+    for i in reversed(range(num_limbs)):
         c, res[i] = sub_with_borrow(x[i], y[i], c)
 
     return res[:]
@@ -26,7 +26,7 @@ def limbs_sub(x: [int], y: [int]) -> [int]:
 def limbs_gte(x, y) -> bool:
     assert len(x) == len(y), "x and y should have same number of limbs"
     
-    for (x_limb, y_limb) in reversed(list(zip(x,y))):
+    for (x_limb, y_limb) in list(zip(x,y)):
         if x_limb > y_limb:
             return True
         elif x_limb < y_limb:
@@ -56,11 +56,11 @@ def int_to_limbs(num: int, limb_count=None) -> [int]:
             res.append(num % BASE)
             num //= BASE
 
-    return res
+    return list(reversed(res))
 
 def limbs_to_int(limbs: [int]) -> [int]:
     res = 0
-    for i, limb in enumerate(limbs):
+    for i, limb in enumerate(reversed(limbs)):
         res += limb * (BASE ** i)
     return res
 
@@ -90,37 +90,38 @@ def sub_with_borrow(x: int, y: int, b: int) -> (int, int):
 # modinv must be pow(-mod, -1, BASE)
 def mulmont_cios(x, y, mod, modinv) -> [int]:
     assert len(x) == len(y) and len(y) == len(mod), "{}, {}, {}".format(x, y, mod)
-    assert mod[-1] != 0, "modulus must occupy all limbs"
+    assert mod[0] != 0, "modulus must occupy all limbs"
 
     limb_count = len(mod)
 
     t = [0] * (limb_count + 2)
 
-    for i in range(limb_count):
+    for i in reversed(range(limb_count)):
         # first inner-loop multiply x * y[i]
         c = 0 
-        for j in range(limb_count):
-            c, t[j] = hi_lo(t[j] + x[j] * y[i] + c)
+        for j in reversed(range(limb_count)):
+            c, t[j + 2] = hi_lo(t[j + 2] + x[j] * y[i] + c)
 
-        t[limb_count + 1], t[limb_count] = hi_lo(t[limb_count] + c)
+        t[0], t[1] = hi_lo(t[1] + c)
 
-        m = (modinv * t[0]) % BASE
-        c, _ = hi_lo(m * mod[0] + t[0])
+        m = (modinv * t[-1]) % BASE
+        c, _ = hi_lo(m * mod[-1] + t[-1])
 
         # second inner-loop: reduction.
-        for j in range(1, limb_count):
-            c, t[j - 1] = hi_lo(t[j] + mod[j] * m + c)
+        for j in reversed(range(1, limb_count)):
+            c, t[j + 2] = hi_lo(t[j + 1] + mod[j - 1] * m + c)
 
-        hi, t[limb_count - 1] = hi_lo(t[limb_count] + c)
-        t[limb_count] = t[limb_count + 1] + hi
 
-    t = t[:-1]
-    if t[-1] != 0:
-        return limbs_sub(t, mod + [0])[:-1]
-    elif limbs_gte(t[:-1], mod):
-        return limbs_sub(t[:-1], mod)
+        hi, t[2] = hi_lo(t[1] + c)
+        t[1] = t[0] + hi
+
+    t = t[1:]
+    if t[0] != 0:
+        return limbs_sub(t, [0] + mod)[1:]
+    elif limbs_gte(t[1:], mod):
+        return limbs_sub(t[1:], mod)
     else:
-        return t[:-1]
+        return t[1:]
 
 
 # addmod computes (x + y) % mod
@@ -134,10 +135,10 @@ def addmod(x: [int], y: [int], mod: [int]) -> [int]:
     if limbs_gte(x, mod) or limbs_gte(y, mod):
         raise Exception("x/y must be less than the modulus")
 
-    for i in range(limb_count):
+    for i in reversed(range(limb_count)):
         c, tmp[i] = hi_lo(x[i] + y[i] + c)
 
-    for i in range(limb_count):
+    for i in reversed(range(limb_count)):
         c1, z[i] = sub_with_borrow(tmp[i], mod[i], c1)
 
     if c == 0 and c1 != 0:
@@ -156,10 +157,10 @@ def submod(x: [int], y: [int], mod: [int]) -> [int]:
     if limbs_gte(x, mod) or limbs_gte(y, mod):
         raise Exception("x/y must be less than the modulus")
 
-    for i in range(limb_count):
+    for i in reversed(range(limb_count)):
         c, tmp[i] = sub_with_borrow(x[i], y[i], c)
 
-    for i in range(limb_count):
+    for i in reversed(range(limb_count)):
         c1, z[i] = hi_lo(tmp[i] + mod[i] + c1)
 
     if c == 0:
@@ -167,8 +168,29 @@ def submod(x: [int], y: [int], mod: [int]) -> [int]:
 
     return z
 
-# setmod computes a modulus-specific constant used by the CIOS algorithm (and also some other algorithms that operate at small bit-widths)
-def setmod(mod: [int]) -> int:
-    assert len(mod) > 0 and len(mod) <= MAX_LIMB_COUNT, "modulus must be in correct range"
-    result = pow(-limbs_to_int(mod), -1, BASE)
-    return result
+class MontContext:
+    def __init__(self):
+        self.r_squared = None
+        self.mod = None
+
+    def SetMod(self, mod: [int]):
+        assert len(mod) > 0 and len(mod) <= MAX_LIMB_COUNT, "modulus must be in correct range"
+        assert mod[0] % 2 == 1, "modulus must not be even"
+
+        modint = limbs_to_int(mod)
+        
+        r = 1 << (len(mod) * 64)
+
+        self.mod_inv = pow(-modint, -1, BASE)
+        self.r_squared = int_to_limbs(r**2 % modint, len(mod))
+        self.mod = mod
+
+    def ToMont(self, val: [int]) -> [int]:
+        return mulmont_cios(val, self.r_squared, self.mod, self.mod_inv)
+
+    def ToNorm(self, val: [int]) -> [int]:
+        one = [1] + [0] * (len(self.mod) - 1)
+        return mulmont_cios(val, one, self.mod, self.mod_inv)
+
+    def MulMont(self, x: [int], y: [int]) -> [int]:
+        return mulmont_cios(x, y, self.mod, self.mod_inv)
