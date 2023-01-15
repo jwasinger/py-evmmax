@@ -6,5 +6,5 @@ Python reference implementation of multiprecision modular addition, subtraction 
 
 Run the tests
 ```
-python3 test.py
+python3 src/py-evmmax/test.py
 ```
