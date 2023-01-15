@@ -1,38 +1,14 @@
-from arith import BASE, LIMB_SIZE, MAX_LIMB_COUNT, submod, addmod, int_to_limbs, limbs_to_int, limbs_gte, mulmont_cios, MontContext
+from arith import BASE, MAX_LIMB_COUNT, submodx_arith, addmodx_arith, int_to_bigint, bigint_to_int, bigint_gte, mulmont_cios, MontContext
 import sys
 
 LIMB_BITS = 64
+LIMB_SIZE = 8
 
 def gen_mont_params(mod) -> ([int], int):
-    mod_limbs = int_to_limbs(mod)
+    mod_limbs = int_to_bigint(mod)
     modinv = pow(-mod, -1, BASE)
 
     return (mod_limbs, modinv)
-
-# TODO create tests like these for 64bit limbs
-#def test_limbs():
-#    base = 10
-#    x = [9,9,9]
-#
-#    print("    test int_to_limbs")
-#    x = 123
-#    assert int_to_limbs(x, base) == [3, 2, 1]
-#    assert int_to_limbs(x, base, 4) == [3, 2, 1, 0]
-#
-#    print("    test limbs_to_int")
-#    x = [3,2,1]
-#    y = [3,2,1,0]
-#    assert limbs_to_int(x, base) == 123
-#    assert limbs_to_int(y, base) == 123
-#    x += [0]
-#    z = [4,2,1,0]
-#
-#    print("    test limbs_gte")
-#    assert limbs_gte(x, y) == True
-#    assert limbs_gte(y, x) == True
-#    assert limbs_gte(x, x) == True
-#    assert limbs_gte(z, x) == True
-#    assert limbs_gte(x, z) == False
 
 def test_bls12381_mod():
     mod = 0x1a0111ea397fe69a4b1ba7b6434bacd764774b84f38512bf6730d2a0f6b0f6241eabfffeb153ffffb9feffffffffaaab
@@ -50,14 +26,14 @@ def test_montmul_64bit_base():
         r_val = ((1 << LIMB_BITS) ** len(modulus_limbs)) % modulus
         r_squared_val = (r_val ** 2) % modulus
         r_inv_val = pow(r_val, -1, modulus)
-        r_squared_limbs = int_to_limbs(r_squared_val, len(modulus_limbs))
+        r_squared_limbs = int_to_bigint(r_squared_val, len(modulus_limbs))
 
         # TODO test with largest, smallest possible values
 
         test_val = 2
-        test_val_limbs = int_to_limbs(test_val, len(modulus_limbs))
+        test_val_limbs = int_to_bigint(test_val, len(modulus_limbs))
 
-        assert limbs_to_int(mulmont_cios(test_val_limbs, r_squared_limbs, modulus_limbs, modinv)) == ( test_val * r_val) % modulus, "should convert normal->montgomery form"
+        assert bigint_to_int(mulmont_cios(test_val_limbs, r_squared_limbs, modulus_limbs, modinv)) == ( test_val * r_val) % modulus, "should convert normal->montgomery form"
 
 def test_mulmont_cios():
     limb_count = 3
@@ -65,11 +41,11 @@ def test_mulmont_cios():
     modint = (1 << (word_size * 8 * limb_count)) - 1
     x_int = modint - 1
     y_int = modint - 1
-    x = int_to_limbs(x_int, limb_count) 
-    y = int_to_limbs(y_int, limb_count) 
+    x = int_to_bigint(x_int, limb_count) 
+    y = int_to_bigint(y_int, limb_count) 
 
     # largest modulus representable with given limb count
-    mod = int_to_limbs(modint, limb_count)
+    mod = int_to_bigint(modint, limb_count)
     ctx = MontContext()
     ctx.SetMod(mod)
 
@@ -79,7 +55,7 @@ def test_mulmont_cios():
     r_val = ((1 << 64) ** len(mod)) % modint
 
     res = ctx.MulMont(x, y)
-    assert limbs_to_int(res) == (x_int * y_int * r_val) % modint
+    assert bigint_to_int(res) == (x_int * y_int * r_val) % modint
 
 def gen_inputs(mod: int) -> [(int, int)]:
     yield mod - 1, mod - 1
@@ -112,12 +88,12 @@ def test_submod():
     for limb_count in range(1, MAX_LIMB_COUNT + 1):
         test_suite = gen_mulmont_test_suite(limb_count)
         for (x, y, mod) in test_suite:
-            x_limbs = int_to_limbs(x, limb_count)
-            y_limbs = int_to_limbs(y, limb_count)
-            mod_limbs = int_to_limbs(mod, limb_count)
+            x_limbs = int_to_bigint(x, limb_count)
+            y_limbs = int_to_bigint(y, limb_count)
+            mod_limbs = int_to_bigint(mod, limb_count)
 
             expected = (x - y) % mod
-            res = limbs_to_int(submod(x_limbs, y_limbs, mod_limbs))
+            res = bigint_to_int(submodx_arith(x_limbs, y_limbs, mod_limbs))
             if expected != res:
                 raise Exception("test fail.  not eq expect cond")
 
@@ -125,21 +101,21 @@ def test_addmod():
     for limb_count in range(1, MAX_LIMB_COUNT + 1):
         test_suite = gen_mulmont_test_suite(limb_count)
         for (x, y, mod) in test_suite:
-            x_limbs = int_to_limbs(x, limb_count)
-            y_limbs = int_to_limbs(y, limb_count)
-            mod_limbs = int_to_limbs(mod, limb_count)
+            x_limbs = int_to_bigint(x, limb_count)
+            y_limbs = int_to_bigint(y, limb_count)
+            mod_limbs = int_to_bigint(mod, limb_count)
 
             expected = (x + y) % mod
-            res = limbs_to_int(addmod(x_limbs, y_limbs, mod_limbs))
+            res = bigint_to_int(addmodx_arith(x_limbs, y_limbs, mod_limbs))
             assert expected == res
 
 def test_mulmont_all_limbs():
     for limb_count in range(1, MAX_LIMB_COUNT + 1):
         test_suite = gen_mulmont_test_suite(limb_count)
         for (x, y, mod) in test_suite:
-            x_limbs = int_to_limbs(x, limb_count)
-            y_limbs = int_to_limbs(y, limb_count)
-            mod_limbs = int_to_limbs(mod, limb_count)
+            x_limbs = int_to_bigint(x, limb_count)
+            y_limbs = int_to_bigint(y, limb_count)
+            mod_limbs = int_to_bigint(mod, limb_count)
 
             ctx = MontContext()
             ctx.SetMod(mod_limbs)
@@ -147,7 +123,7 @@ def test_mulmont_all_limbs():
             r_inv = pow(1 << (limb_count * LIMB_BITS), -1, mod)
 
             expected = (x * y * r_inv) % mod
-            res = limbs_to_int(mulmont_cios(x_limbs, y_limbs, mod_limbs, modinv))
+            res = bigint_to_int(mulmont_cios(x_limbs, y_limbs, mod_limbs, modinv))
             assert expected == res
 
 def test_1limb_hardcoded_case1():
@@ -164,7 +140,7 @@ def test_1limb_hardcoded_case2():
     ctx.SetMod(mod_limbs)
     mod_inv = ctx.mod_inv
 
-    res = limbs_to_int(mulmont_cios(x_limbs, y_limbs, mod_limbs, mod_inv))
+    res = bigint_to_int(mulmont_cios(x_limbs, y_limbs, mod_limbs, mod_inv))
 
 def test_failure():
     x_limbs = [4]
@@ -174,7 +150,7 @@ def test_failure():
     ctx.SetMod(mod_limbs)
     mod_inv = ctx.mod_inv
 
-    res = limbs_to_int(mulmont_cios(x_limbs, y_limbs, mod_limbs, mod_inv))
+    res = bigint_to_int(mulmont_cios(x_limbs, y_limbs, mod_limbs, mod_inv))
     sys.exit(0)
 
 #test_failure()
